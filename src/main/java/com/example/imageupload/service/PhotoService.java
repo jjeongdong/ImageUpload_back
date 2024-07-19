@@ -5,17 +5,17 @@ import com.example.imageupload.entity.Member;
 import com.example.imageupload.entity.Photo;
 import com.example.imageupload.repository.MemberRepository;
 import com.example.imageupload.repository.PhotoRepository;
+import io.awspring.cloud.s3.ObjectMetadata;
+import io.awspring.cloud.s3.S3Resource;
+import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,10 +23,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PhotoService {
 
-    private static final String UPLOAD_DIR = "./uploads/";
-
     private final PhotoRepository photoRepository;
     private final MemberRepository memberRepository;
+    private final S3Template s3Template;
+
+    @Value("${spring.cloud.aws.s3.bucket}")
+    private String bucketName;
+
 
     public StateResponse uploadImage(MultipartFile file) {
         if (!file.isEmpty()) {
@@ -37,32 +40,25 @@ public class PhotoService {
                     return new StateResponse(false);
                 }
 
-                // Create upload directory if not exists
-                File uploadDir = new File(UPLOAD_DIR);
-                if (!uploadDir.exists()) {
-                    uploadDir.mkdirs();
-                }
-
                 // Save the file with a unique name
                 String fileExtension = StringUtils.getFilenameExtension(file.getOriginalFilename());
                 String newFileName = UUID.randomUUID().toString() + "." + fileExtension;
-                Path path = Paths.get(UPLOAD_DIR + newFileName);
-                Files.write(path, file.getBytes());
 
                 // Find the member
                 Member member = memberRepository.findById(1L)
                         .orElseThrow(EntityNotFoundException::new);
 
-                // Save photo information in the database
+                // S3에 파일 업로드
+                S3Resource s3Resource = s3Template.upload(bucketName, "raw/" + newFileName, file.getInputStream(), ObjectMetadata.builder().contentType(fileExtension).build());
+
                 Photo photo = Photo.builder()
-                        .keyValue(newFileName)  // 저장된 파일명을 저장
+                        .keyValue(s3Resource.getURL().toString())
                         .originName(file.getOriginalFilename())
                         .member(member)
                         .build();
 
                 photoRepository.save(photo);
 
-                // Return file information
                 return new StateResponse(true);
             } catch (IOException e) {
                 e.printStackTrace();
