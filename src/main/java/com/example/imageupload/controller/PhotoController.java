@@ -19,12 +19,12 @@ public class PhotoController {
 
     private final PhotoService photoService;
 
-    @PostMapping("/")
+    @PostMapping
     public StateResponse uploadPhoto(@RequestParam("image") MultipartFile file) {
         return photoService.uploadImage(file);
     }
 
-    @GetMapping("/")
+    @GetMapping
     public List<PhotoGetResponse> getPhotoList() {
         return photoService.getImages().stream()
                 .map(PhotoGetResponse::toPhotoGetResponse)
