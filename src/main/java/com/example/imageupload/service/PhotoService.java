@@ -1,6 +1,12 @@
 package com.example.imageupload.service;
 
-import com.example.imageupload.dto.StateResponse;
+import com.amazonaws.HttpMethod;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.Headers;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.example.imageupload.dto.res.PreSignedUrlResponse;
+import com.example.imageupload.dto.res.StateResponse;
 import com.example.imageupload.entity.Member;
 import com.example.imageupload.entity.Photo;
 import com.example.imageupload.repository.MemberRepository;
@@ -16,6 +22,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URL;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,10 +34,15 @@ public class PhotoService {
     private final PhotoRepository photoRepository;
     private final MemberRepository memberRepository;
     private final S3Template s3Template;
+    private final AmazonS3 amazonS3;
+
+    private String useOnlyOneFileName;
 
     @Value("${spring.cloud.aws.s3.bucket}")
     private String bucketName;
 
+    @Value("${spring.cloud.aws.region.static}")
+    private String region;
 
     public StateResponse uploadImage(MultipartFile file) {
         if (!file.isEmpty()) {
@@ -42,7 +55,7 @@ public class PhotoService {
 
                 // Save the file with a unique name
                 String fileExtension = StringUtils.getFilenameExtension(file.getOriginalFilename());
-                String newFileName = UUID.randomUUID().toString() + "." + fileExtension;
+                String newFileName = UUID.randomUUID() + "." + fileExtension;
 
                 // Find the member
                 Member member = memberRepository.findById(1L)
@@ -52,7 +65,8 @@ public class PhotoService {
                 S3Resource s3Resource = s3Template.upload(bucketName, "raw/" + newFileName, file.getInputStream(), ObjectMetadata.builder().contentType(fileExtension).build());
 
                 Photo photo = Photo.builder()
-                        .keyValue(s3Resource.getURL().toString())
+                        .keyValue(s3Resource.getFilename())
+                        .imgUrl(s3Resource.getURL().toString())
                         .originName(file.getOriginalFilename())
                         .member(member)
                         .build();
@@ -71,5 +85,95 @@ public class PhotoService {
 
     public List<Photo> getImages() {
         return photoRepository.findAll();
+    }
+
+    public StateResponse deleteImage(Long photoId) {
+        try {
+            Photo photo = photoRepository.findById(photoId)
+                    .orElseThrow(EntityNotFoundException::new);
+
+            // Delete the object from S3
+            s3Template.deleteObject(bucketName, photo.getKeyValue());
+
+            // Delete the photo record from the database
+            photoRepository.delete(photo);
+
+            return new StateResponse(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new StateResponse(false);
+        }
+    }
+
+    /**
+     * presigned url 발급
+     *
+     * @param prefix   버킷 디렉토리 이름
+     * @param fileName 클라이언트가 전달한 파일명 파라미터
+     * @return presigned url
+     */
+    public PreSignedUrlResponse getPreSignedUrl(String prefix, String fileName) {
+        fileName = createPath(prefix, fileName);
+
+        useOnlyOneFileName = fileName;
+
+        GeneratePresignedUrlRequest generatePresignedUrlRequest = getGeneratePreSignedUrlRequest(bucketName, fileName);
+        URL url = amazonS3.generatePresignedUrl(generatePresignedUrlRequest);
+        return PreSignedUrlResponse.toPreSignedUrlResponse(url.toString());
+    }
+
+    /**
+     * 파일 업로드용(PUT) presigned url 생성
+     *
+     * @param bucket   버킷 이름
+     * @param fileName S3 업로드용 파일 이름
+     * @return presigned url
+     */
+    private GeneratePresignedUrlRequest getGeneratePreSignedUrlRequest(String bucket, String fileName) {
+        GeneratePresignedUrlRequest generatePresignedUrlRequest =
+                new GeneratePresignedUrlRequest(bucket, fileName)
+                        .withMethod(HttpMethod.PUT)
+                        .withExpiration(getPreSignedUrlExpiration());
+        generatePresignedUrlRequest.addRequestParameter(
+                Headers.S3_CANNED_ACL,
+                CannedAccessControlList.PublicRead.toString());
+        return generatePresignedUrlRequest;
+    }
+
+    /**
+     * presigned url 유효 기간 설정
+     *
+     * @return 유효기간
+     */
+    private Date getPreSignedUrlExpiration() {
+        Date expiration = new Date();
+        long expTimeMillis = expiration.getTime();
+        expTimeMillis += 1000 * 60 * 2;
+        expiration.setTime(expTimeMillis);
+        return expiration;
+    }
+
+    /**
+     * 파일 고유 ID를 생성
+     *
+     * @return 36자리의 UUID
+     */
+    private String createFileId() {
+        return UUID.randomUUID().toString();
+    }
+
+    /**
+     * 파일의 전체 경로를 생성
+     *
+     * @param prefix 디렉토리 경로
+     * @return 파일의 전체 경로
+     */
+    private String createPath(String prefix, String fileName) {
+        String fileId = createFileId();
+        return String.format("%s/%s", prefix, fileId + fileName);
+    }
+
+    public String findByName(String path) {
+        return "https://" + bucketName + ".s3." + region + ".amazonaws.com/" + path + "/" + useOnlyOneFileName;
     }
 }

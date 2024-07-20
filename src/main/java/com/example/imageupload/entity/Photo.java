@@ -15,6 +15,8 @@ public class Photo {
 
     private String keyValue;
 
+    private String imgUrl;
+
     private String originName;
 
     @ManyToOne(fetch = FetchType.LAZY)

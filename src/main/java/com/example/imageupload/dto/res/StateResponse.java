@@ -1,4 +1,4 @@
-package com.example.imageupload.dto;
+package com.example.imageupload.dto.res;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
