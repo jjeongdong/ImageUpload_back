@@ -84,7 +84,9 @@ public class PhotoService {
             Photo photo = photoRepository.findById(photoId).orElseThrow(EntityNotFoundException::new);
 
             // Delete the object from S3
-            s3Template.deleteObject(bucketName, photo.getKeyValue());
+            s3Template.deleteObject(bucketName, "raw/" + photo.getKeyValue());
+            s3Template.deleteObject(bucketName, "w140/" + photo.getKeyValue());
+            s3Template.deleteObject(bucketName, "w600/" + photo.getKeyValue());
 
             // Delete the photo record from the database
             photoRepository.delete(photo);
@@ -105,6 +107,7 @@ public class PhotoService {
      */
     public PreSignedUrlResponse getPreSignedUrl(String prefix, String originalFilename) {
         String fileName = createPath(prefix, originalFilename);
+        String keyValue = fileName.split("/")[1];
         GeneratePresignedUrlRequest generatePresignedUrlRequest = getGeneratePreSignedUrlRequest(bucketName, fileName);
         URL presignedUrl = amazonS3.generatePresignedUrl(generatePresignedUrlRequest);
         String imgUrl = generateFileAccessUrl(fileName);
@@ -114,7 +117,7 @@ public class PhotoService {
         Photo photo = Photo.builder()
                 .imgUrl(imgUrl)
                 .originName(originalFilename)
-                .keyValue(fileName)
+                .keyValue(keyValue)
                 .member(member)
                 .build();
 
