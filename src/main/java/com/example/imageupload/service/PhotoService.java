@@ -3,8 +3,8 @@ package com.example.imageupload.service;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.Headers;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.*;
+import com.amazonaws.util.IOUtils;
 import com.example.imageupload.dto.res.PreSignedUrlResponse;
 import com.example.imageupload.dto.res.StateResponse;
 import com.example.imageupload.entity.Member;
@@ -18,6 +18,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,7 +43,8 @@ public class PhotoService {
     @Value("${spring.cloud.aws.region.static}")
     private String region;
 
-    public StateResponse uploadImage(MultipartFile file) {
+    @Transactional
+    public StateResponse uploadPhoto(MultipartFile file) {
         if (!file.isEmpty()) {
             try {
                 // Check file type
@@ -75,11 +77,18 @@ public class PhotoService {
         }
     }
 
-    public List<Photo> getImages() {
+    @Transactional(readOnly = true)
+    public Photo getPhoto(Long photoId) {
+        return photoRepository.findById(photoId).orElseThrow(EntityNotFoundException::new);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Photo> getPhotoList() {
         return photoRepository.findAll();
     }
 
-    public StateResponse deleteImage(Long photoId) {
+    @Transactional
+    public StateResponse deletePhoto(Long photoId) {
         try {
             Photo photo = photoRepository.findById(photoId).orElseThrow(EntityNotFoundException::new);
 
@@ -105,6 +114,7 @@ public class PhotoService {
      * @param originalFilename 클라이언트가 전달한 파일명 파라미터
      * @return presigned url
      */
+    @Transactional(readOnly = true)
     public PreSignedUrlResponse getPreSignedUrl(String prefix, String originalFilename) {
         String fileName = createPath(prefix, originalFilename);
         String keyValue = fileName.split("/")[1];
@@ -182,5 +192,20 @@ public class PhotoService {
      */
     private String generateFileAccessUrl(String fileName) {
         return String.format("https://%s.s3.%s.amazonaws.com/%s", bucketName, region, fileName);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] downloadPhoto(Long photoId) throws IOException {
+        Photo photo = photoRepository.findById(photoId).orElseThrow(EntityNotFoundException::new);
+        String keyValue = photo.getKeyValue();
+
+        S3Object s3Object = amazonS3.getObject(bucketName + "/raw", keyValue);
+        S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
+
+        try {
+            return IOUtils.toByteArray(s3ObjectInputStream);
+        } catch (IOException e) {
+            throw new IllegalStateException("S3 object could not be read");
+        }
     }
 }
