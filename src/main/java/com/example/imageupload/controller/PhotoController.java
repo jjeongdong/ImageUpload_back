@@ -2,6 +2,7 @@ package com.example.imageupload.controller;
 
 import com.example.imageupload.dto.req.PreSignedUrlRequest;
 import com.example.imageupload.dto.res.PhotoGetResponse;
+import com.example.imageupload.dto.res.PreSignedUrlListResponse;
 import com.example.imageupload.dto.res.PreSignedUrlResponse;
 import com.example.imageupload.dto.res.StateResponse;
 import com.example.imageupload.entity.Photo;
@@ -47,12 +48,13 @@ public class PhotoController {
     }
 
     @PostMapping("/preSignedUrl")
-    public ResponseEntity<List<PreSignedUrlResponse>> getPreSignedUrl(@RequestBody List<PreSignedUrlRequest> preSignedUrlRequestList) {
-        List<PreSignedUrlResponse> preSignedUrlList = preSignedUrlRequestList.stream()
-                .map(preSignedUrlRequest -> photoService.getPreSignedUrl(preSignedUrlRequest.getPrefix(), preSignedUrlRequest.getImageName()))
+    public ResponseEntity<PreSignedUrlListResponse> getPreSignedUrl(@RequestBody PreSignedUrlRequest preSignedUrlRequestList) {
+        List<String> preSignedUrlList = preSignedUrlRequestList.getImageNameList().stream()
+                .map(preSignedUrlRequest -> photoService.getPreSignedUrl("raw", preSignedUrlRequest).getPreSignedUrl())
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok().body(preSignedUrlList);
+        PreSignedUrlListResponse preSignedUrlListResponse = new PreSignedUrlListResponse(preSignedUrlList);
+        return ResponseEntity.ok().body(preSignedUrlListResponse);
     }
 
     @GetMapping("/download/{photoId}")

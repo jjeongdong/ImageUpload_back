@@ -2,10 +2,10 @@ package com.example.imageupload.dto.req;
 
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 public class PreSignedUrlRequest {
 
-    private String prefix;
-
-    private String imageName;
+    private List<String> imageNameList;
 }

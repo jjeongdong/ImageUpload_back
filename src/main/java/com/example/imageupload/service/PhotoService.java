@@ -114,7 +114,8 @@ public class PhotoService {
      * @param originalFilename 클라이언트가 전달한 파일명 파라미터
      * @return presigned url
      */
-    @Transactional(readOnly = true)
+//    @Transactional(readOnly = true)
+    @Transactional
     public PreSignedUrlResponse getPreSignedUrl(String prefix, String originalFilename) {
         String fileName = createPath(prefix, originalFilename);
         String keyValue = fileName.split("/")[1];

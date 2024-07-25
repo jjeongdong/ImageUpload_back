@@ -12,11 +12,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class PreSignedUrlResponse {
 
-    private String data;
+    private String preSignedUrl;
 
     public static PreSignedUrlResponse toPreSignedUrlResponse(String preSignedUrl) {
         return PreSignedUrlResponse.builder()
-                .data(preSignedUrl)
+                .preSignedUrl(preSignedUrl)
                 .build();
     }
 }
