@@ -1,14 +1,16 @@
 package com.example.imageupload.controller;
 
+import com.example.imageupload.converter.PhotoConverter;
 import com.example.imageupload.dto.req.PreSignedUrlRequest;
-import com.example.imageupload.dto.res.PhotoGetResponse;
+import com.example.imageupload.dto.res.PhotoDownloadUrlListResponse;
+import com.example.imageupload.dto.res.PhotoListResponseDTO;
 import com.example.imageupload.dto.res.PreSignedUrlListResponse;
-import com.example.imageupload.dto.res.PreSignedUrlResponse;
 import com.example.imageupload.dto.res.StateResponse;
 import com.example.imageupload.entity.Photo;
 import com.example.imageupload.service.PhotoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,17 +29,13 @@ public class PhotoController {
     @PostMapping
     public ResponseEntity<StateResponse> uploadPhoto(@RequestParam("image") MultipartFile file) {
         StateResponse stateResponse = photoService.uploadPhoto(file);
-
         return ResponseEntity.ok().body(stateResponse);
     }
 
     @GetMapping
-    public ResponseEntity<List<PhotoGetResponse>> getPhotoList() {
-        List<PhotoGetResponse> photoList = photoService.getPhotoList().stream()
-                .map(PhotoGetResponse::toPhotoGetResponse)
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok().body(photoList);
+    public ResponseEntity<PhotoListResponseDTO> getPhotoList(@RequestParam(name = "page") Integer page) {
+        Page<Photo> photoList = photoService.getPhotoList(page);
+        return ResponseEntity.ok().body(PhotoConverter.toPhotoListResponseDTO(photoList));
     }
 
     @DeleteMapping("/{photoId}")
@@ -48,7 +46,7 @@ public class PhotoController {
     }
 
     @PostMapping("/preSignedUrl")
-    public ResponseEntity<PreSignedUrlListResponse> getPreSignedUrl(@RequestBody PreSignedUrlRequest preSignedUrlRequestList) {
+    public ResponseEntity<PreSignedUrlListResponse> getPreSignedUrlList(@RequestBody PreSignedUrlRequest preSignedUrlRequestList) {
         List<String> preSignedUrlList = preSignedUrlRequestList.getImageNameList().stream()
                 .map(preSignedUrlRequest -> photoService.getPreSignedUrl("raw", preSignedUrlRequest).getPreSignedUrl())
                 .collect(Collectors.toList());
@@ -69,5 +67,11 @@ public class PhotoController {
                 .header("Content-type", "application/octet-stream")
                 .header("Content-disposition", "attachment; filename=\"" + downloadImageName + "\"")
                 .body(byteArrayResource);
+    }
+
+    @GetMapping("/downloadMultiple")
+    public ResponseEntity<PhotoDownloadUrlListResponse> getDownloadUrlList(@RequestParam List<Long> photoIdList) {
+        PhotoDownloadUrlListResponse downloadUrlList = photoService.getDownloadUrlList(photoIdList);
+        return ResponseEntity.ok(downloadUrlList);
     }
 }

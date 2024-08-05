@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.Headers;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
+import com.example.imageupload.converter.PhotoConverter;
+import com.example.imageupload.dto.res.PhotoDownloadUrlListResponse;
 import com.example.imageupload.dto.res.PreSignedUrlResponse;
 import com.example.imageupload.dto.res.StateResponse;
 import com.example.imageupload.entity.Member;
@@ -17,6 +19,8 @@ import io.awspring.cloud.s3.S3Template;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -27,6 +31,7 @@ import java.net.URL;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -83,8 +88,8 @@ public class PhotoService {
     }
 
     @Transactional(readOnly = true)
-    public List<Photo> getPhotoList() {
-        return photoRepository.findAll();
+    public Page<Photo> getPhotoList(Integer page) {
+        return photoRepository.findAll(PageRequest.of(page, 10));
     }
 
     @Transactional
@@ -208,5 +213,10 @@ public class PhotoService {
         } catch (IOException e) {
             throw new IllegalStateException("S3 object could not be read");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public PhotoDownloadUrlListResponse getDownloadUrlList(List<Long> photoIdList) {
+        return PhotoConverter.toPhotoDownloadUrlListResponse(photoIdList);
     }
 }
